@@ -302,3 +302,95 @@ export async function fetchPublic(path) {
     clearTimeout(timer);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Inloggen: de eenmalige code inwisselen voor een token.
+//
+// Na het inloggen bij Google stuurt de backend `?code=` terug en niet het token
+// zelf: een token in een URL belandt in serverlogs en in de geschiedenis van de
+// browser. Die code werkt één keer en vervalt na een minuut.
+//
+// Dit staat hier en niet in elke app apart, omdat het al een keer is misgegaan:
+// ctfdeclaraties las alleen nog `?token=` en negeerde de code. Er was dan niets
+// om op te slaan, dus kwam je na het inloggen terug op hetzelfde inlogscherm --
+// wat aanvoelt als een eindeloze lus, zonder enige foutmelding. Dat bleef
+// maanden onopgemerkt omdat er niemand inlogde.
+
+/** Wisselt een inlogcode in voor een token. Geeft het token, of null. */
+export async function wisselInlogcodeIn(code) {
+  try {
+    const res = await fetch(`${API_URL}/api/auth/exchange`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify({
+        code
+      })
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json && json.token || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Handelt de terugkeer van de inlogpagina af.
+ *
+ * Roep dit één keer aan bij het opstarten van de app. Hij kijkt naar de
+ * queryparameters, wisselt een code in, ruimt de URL op en geeft terug wat er
+ * gebeurde:
+ *
+ *   { status: 'geen' }                    — niets in de URL, gewoon doorgaan
+ *   { status: 'ok', token }               — ingelogd, token opslaan
+ *   { status: 'mislukt', melding }        — code verlopen of geweigerd
+ *
+ * Laat 'mislukt' zien aan de gebruiker. Stil terugvallen op het inlogscherm
+ * laat iemand eindeloos op dezelfde knop drukken zonder te weten waarom.
+ */
+export async function verwerkInlogTerugkeer(zoekstring) {
+  const params = new URLSearchParams(typeof zoekstring === 'string' ? zoekstring : window.location.search);
+  const code = params.get('code');
+  const token = params.get('token');
+  const fout = params.get('auth_error');
+  const opruimen = () => {
+    try {
+      window.history.replaceState({}, '', window.location.pathname);
+    } catch {
+      /* niet fataal */
+    }
+  };
+  if (code) {
+    opruimen();
+    const t = await wisselInlogcodeIn(code);
+    return t ? {
+      status: 'ok',
+      token: t
+    } : {
+      status: 'mislukt',
+      melding: 'Inloggen is niet gelukt. De inlogcode was verlopen of al gebruikt; probeer het opnieuw.'
+    };
+  }
+
+  // Terugval voor de oude vorm, mocht die ergens nog voorbijkomen.
+  if (token) {
+    opruimen();
+    return {
+      status: 'ok',
+      token
+    };
+  }
+  if (fout) {
+    opruimen();
+    return {
+      status: 'mislukt',
+      melding: fout
+    };
+  }
+  return {
+    status: 'geen'
+  };
+}
