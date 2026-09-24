@@ -23,8 +23,10 @@ name: Uitrollen naar de server (herbruikbaar)
 # commit, `git tag deploy-v2`, en de apps één voor één omzetten.
 #
 # De secrets worden expliciet doorgegeven (niet `secrets: inherit`): dan is in
-# de aanroep te zien welke er meegaan, en kan ctfcrm/deploy-test zijn eigen
-# TEST_SERVER_* meegeven.
+# de aanroep te zien welke er meegaan, en blijven de namen per repo vrij.
+#
+# Niet voor ctfsoftware (geen build, eigen data-check, map publiek/) en
+# ctfcrm/deploy-test (andere tak, balk erin geplakt): die houden hun eigen stap.
 
 on:
   workflow_call:
