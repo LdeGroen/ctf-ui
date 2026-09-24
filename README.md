@@ -53,3 +53,11 @@ npm run build
 git add -A && git commit -m "..."
 git tag v0.x.y && git push origin main --tags
 ```
+
+## Deploy-workflow voor de sites
+
+`.github/workflows/deploy-site.yml` is de gedeelde bouw- en uitrolstap (rsync naar de
+server, vaste hostsleutel, concurrency). Een app roept hem aan op de tag `deploy-v1`;
+het voorbeeld staat bovenin het bestand. Een wijziging = commit + nieuwe tag
+(`deploy-v2`) + de apps één voor één omzetten. Staat niet in `files`, dus komt niet
+in `node_modules` van de apps terecht.
