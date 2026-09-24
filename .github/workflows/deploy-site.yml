@@ -1,0 +1,152 @@
+name: Uitrollen naar de server (herbruikbaar)
+
+# Eén deploy voor alle CTF-sites (CRA en Vite), zodat een fix hier één commit
+# plus een tag is in plaats van twintig keer dezelfde wijziging. Deze repo is
+# publiek, dus zowel publieke als privé-repo's van LdeGroen mogen hem aanroepen.
+#
+# Aanroepen vanuit een app (.github/workflows/deploy.yml):
+#
+#   on:
+#     push:
+#       branches: [main]
+#     workflow_dispatch:
+#   jobs:
+#     deploy:
+#       uses: LdeGroen/ctf-ui/.github/workflows/deploy-site.yml@deploy-v1
+#       secrets:
+#         SSH_KEY: ${{ secrets.NIEUWE_SERVER_KEY }}
+#         SSH_USER: ${{ secrets.NIEUWE_SERVER_USER }}
+#         DOEL_PAD: ${{ secrets.NIEUWE_SERVER_PAD }}
+#
+# Altijd op een tag (deploy-v1) aanroepen, nooit op main: dan verandert een
+# wijziging hier niets aan een app tot die de tag ophoogt. Nieuwe versie:
+# commit, `git tag deploy-v2`, en de apps één voor één omzetten.
+#
+# De secrets worden expliciet doorgegeven (niet `secrets: inherit`): dan is in
+# de aanroep te zien welke er meegaan, en blijven de namen per repo vrij.
+#
+# Niet voor ctfsoftware (geen build, eigen data-check, map publiek/) en
+# ctfcrm/deploy-test (andere tak, balk erin geplakt): die houden hun eigen stap.
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node-versie voor de build
+        type: string
+        default: '20'
+      npm-version:
+        description: Vaste npm-versie (leeg = die van de runner). ctfcommi heeft 11 nodig voor zijn lockfile.
+        type: string
+        default: ''
+      lint:
+        description: Vóór de build `npm run lint` draaien (Vite lint zelf niet)
+        type: boolean
+        default: false
+      build-env:
+        description: Extra omgevingsvariabelen voor de build, één KEY=waarde per regel. Geen geheimen.
+        type: string
+        default: ''
+    secrets:
+      SSH_KEY:
+        required: false
+      SSH_USER:
+        required: false
+      DOEL_PAD:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  SERVER: 167.233.167.13
+  # Hostsleutel van de Hetzner-server, vastgezet zodat de runner alleen naar
+  # déze machine uitrolt (voorheen StrictHostKeyChecking=no: wie het verkeer
+  # kon omleiden, kreeg de build). Opgehaald met `ssh-keyscan -t ed25519` en
+  # op 24-9-2026 vergeleken met /etc/ssh/ssh_host_ed25519_key.pub op de
+  # server zelf: SHA256:KY1iLxbz4fW1HZ7hulqwXt5uLPuPP8zswRm4toSdY3U.
+  # Wordt de server opnieuw geïnstalleerd, dan faalt de uitrol met "Host key
+  # verification failed": nieuwe sleutel op dezelfde manier controleren, hier
+  # invullen en een nieuwe tag zetten.
+  SERVER_HOSTKEY: 167.233.167.13 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPnLRW5WnGwqKfGC1FmHDeqKwupGMnpwAPZmYVyNRDVk
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Twee deploys tegelijk rsync'en met --delete naar dezelfde map. Welke als
+    # laatste klaar is, bepaalt wat er live staat -- landt de oudste als
+    # laatste, dan draait de site stil terug (ctfcrm, 25-8-2026). Een nieuwe
+    # push maakt de vorige overbodig, dus afbreken mag. De github-context is
+    # hier die van de aanroepende repo, dus de groep is per app en per workflow.
+    concurrency:
+      group: deploy-${{ github.repository }}-${{ github.workflow }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+
+      - name: npm vastzetten
+        if: inputs.npm-version != ''
+        run: npm install -g "npm@${{ inputs.npm-version }}"
+
+      - name: Afhankelijkheden installeren
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        if: inputs.lint
+        run: npm run lint
+
+      - name: Extra bouwvariabelen
+        if: inputs.build-env != ''
+        env:
+          BUILD_ENV: ${{ inputs.build-env }}
+        run: |
+          printf '%s\n' "$BUILD_ENV" | while IFS= read -r regel; do
+            [ -z "$regel" ] && continue
+            case "$regel" in
+              [A-Z_]*=*) printf '%s\n' "$regel" >> "$GITHUB_ENV" ;;
+              *) echo "::error::build-env: '$regel' is geen KEY=waarde"; exit 1 ;;
+            esac
+          done
+
+      - name: Bouwen
+        run: npm run build
+        env:
+          # CRA promoveert lint-warnings naar errors als CI=true (GitHub default).
+          # We tonen warnings in CI maar laten de build niet falen erop.
+          CI: false
+          # De source map werd publiek meegeleverd: de broncode van de app was
+          # zonder inloggen leesbaar op te halen. Scheelt bovendien ongeveer een
+          # derde van de bouwtijd. (Vite negeert deze variabele.)
+          GENERATE_SOURCEMAP: false
+
+      # Bewust géén "if: always()": faalt de build, dan mag deze stap niet
+      # draaien. react-scripts en Vite legen build/ al vóór het compileren, dus
+      # na een mislukte build zou rsync --delete de live site vervangen door
+      # een lege pagina.
+      - name: Uitrollen (rsync over SSH)
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DOEL_PAD: ${{ secrets.DOEL_PAD }}
+        run: |
+          # Ontbreekt een secret, dan hard falen in plaats van stil slagen: anders
+          # lijkt de uitrol gelukt terwijl er niets is gekopieerd. Een lege
+          # DOEL_PAD maakt van het doel htdocs// en dan wist --delete de hele htdocs.
+          if [ -z "$SSH_KEY" ] || [ -z "$SSH_USER" ] || [ -z "$DOEL_PAD" ]; then
+            echo "::error::SSH_KEY, SSH_USER of DOEL_PAD ontbreekt — er is niets uitgerold."; exit 1
+          fi
+          # Een lege of halve build mag er niet doorheen glippen.
+          [ -s ./build/index.html ] || { echo "::error::build/index.html ontbreekt of is leeg — niets uitgerold."; exit 1; }
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SERVER_HOSTKEY" > ~/.ssh/known_hosts_ctf
+          rsync -az --delete \
+            -e "ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts_ctf -o GlobalKnownHostsFile=/dev/null" \
+            ./build/ "$SSH_USER@$SERVER:htdocs/$DOEL_PAD/"
+          echo "uitgerold naar $DOEL_PAD"
