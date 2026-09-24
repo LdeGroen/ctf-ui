@@ -1,6 +1,6 @@
 {
   "name": "ctf-ui",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Gedeelde UI-componenten en utilities voor de CTF web-apps (Café Theater Festival)",
   "main": "dist/index.js",
   "exports": {

@@ -305,6 +305,18 @@ export async function wisselInlogcodeIn(code) {
     }
 }
 
+// De meldingen die de backend (AuthController::authError) meegeeft. Alleen
+// die tonen we letterlijk: de parameter staat in de URL en is dus door
+// iedereen in te vullen.
+const BEKENDE_INLOGFOUTEN = [
+    'Geen toegang. Jouw account staat niet in het systeem.',
+    'Jouw toegang is verlopen.',
+];
+
+function inlogFoutTekst(fout) {
+    return BEKENDE_INLOGFOUTEN.includes(fout) ? fout : 'Inloggen is niet gelukt.';
+}
+
 /**
  * Handelt de terugkeer van de inlogpagina af.
  *
@@ -324,7 +336,6 @@ export async function verwerkInlogTerugkeer(zoekstring) {
         typeof zoekstring === 'string' ? zoekstring : window.location.search,
     );
     const code = params.get('code');
-    const token = params.get('token');
     const fout = params.get('auth_error');
 
     const opruimen = () => {
@@ -347,17 +358,16 @@ export async function verwerkInlogTerugkeer(zoekstring) {
             };
     }
 
-    // Terugval voor de oude vorm, mocht die ergens nog voorbijkomen.
-    if (token) {
-        opruimen();
-
-        return { status: 'ok', token };
-    }
+    // Een ?token= nemen we bewust niet aan. De backend stuurt sinds H-02b
+    // alleen nog ?code=, en met een meegegeven token kon iemand je stil in
+    // zíjn account laten werken (je IBAN en adres komen dan bij hem terecht).
+    // Wel uit het adres vegen.
+    if (params.has('token')) opruimen();
 
     if (fout) {
         opruimen();
 
-        return { status: 'mislukt', melding: fout };
+        return { status: 'mislukt', melding: inlogFoutTekst(fout) };
     }
 
     return { status: 'geen' };
