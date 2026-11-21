@@ -18,6 +18,9 @@ name: Uitrollen naar de server (herbruikbaar)
 #         SSH_USER: ${{ secrets.NIEUWE_SERVER_USER }}
 #         DOEL_PAD: ${{ secrets.NIEUWE_SERVER_PAD }}
 #
+# Met een eigen, beperkte sleutel per site (audit INF-01) zet je
+# `with: beperkte-sleutel: true` erbij (vanaf tag deploy-v2).
+#
 # Altijd op een tag (deploy-v1) aanroepen, nooit op main: dan verandert een
 # wijziging hier niets aan een app tot die de tag ophoogt. Nieuwe versie:
 # commit, `git tag deploy-v2`, en de apps één voor één omzetten.
@@ -47,6 +50,13 @@ on:
         description: Extra omgevingsvariabelen voor de build, één KEY=waarde per regel. Geen geheimen.
         type: string
         default: ''
+      beperkte-sleutel:
+        description: >-
+          De sleutel van deze site staat op de server achter rrsync
+          (command="rrsync -wo <map>",restrict). Dan is de map al vastgezet en
+          rollen we uit naar de root daarvan; DOEL_PAD is niet nodig (audit INF-01).
+        type: boolean
+        default: false
     secrets:
       SSH_KEY:
         required: false
@@ -93,8 +103,11 @@ jobs:
         if: inputs.npm-version != ''
         run: npm install -g "npm@${{ inputs.npm-version }}"
 
+      # Zonder install-scripts: een gecompromitteerd pakket kan dan in deze
+      # job geen proces starten dat later de uitrolsleutel leest (audit INF-01).
+      # Vite/rolldown/esbuild halen hun binaire deel uit optionalDependencies.
       - name: Afhankelijkheden installeren
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund --ignore-scripts
 
       - name: Lint
         if: inputs.lint
@@ -133,12 +146,21 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           SSH_USER: ${{ secrets.SSH_USER }}
           DOEL_PAD: ${{ secrets.DOEL_PAD }}
+          BEPERKT: ${{ inputs.beperkte-sleutel }}
         run: |
           # Ontbreekt een secret, dan hard falen in plaats van stil slagen: anders
           # lijkt de uitrol gelukt terwijl er niets is gekopieerd. Een lege
           # DOEL_PAD maakt van het doel htdocs// en dan wist --delete de hele htdocs.
-          if [ -z "$SSH_KEY" ] || [ -z "$SSH_USER" ] || [ -z "$DOEL_PAD" ]; then
-            echo "::error::SSH_KEY, SSH_USER of DOEL_PAD ontbreekt — er is niets uitgerold."; exit 1
+          if [ -z "$SSH_KEY" ] || [ -z "$SSH_USER" ]; then
+            echo "::error::SSH_KEY of SSH_USER ontbreekt — er is niets uitgerold."; exit 1
+          fi
+          if [ "$BEPERKT" = "true" ]; then
+            # rrsync zet de map vast; het doel is de root daarvan.
+            DOEL=""
+          elif [ -z "$DOEL_PAD" ]; then
+            echo "::error::DOEL_PAD ontbreekt — er is niets uitgerold."; exit 1
+          else
+            DOEL="htdocs/$DOEL_PAD/"
           fi
           # Een lege of halve build mag er niet doorheen glippen.
           [ -s ./build/index.html ] || { echo "::error::build/index.html ontbreekt of is leeg — niets uitgerold."; exit 1; }
@@ -148,5 +170,5 @@ jobs:
           printf '%s\n' "$SERVER_HOSTKEY" > ~/.ssh/known_hosts_ctf
           rsync -az --delete \
             -e "ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts_ctf -o GlobalKnownHostsFile=/dev/null" \
-            ./build/ "$SSH_USER@$SERVER:htdocs/$DOEL_PAD/"
-          echo "uitgerold naar $DOEL_PAD"
+            ./build/ "$SSH_USER@$SERVER:$DOEL"
+          echo "uitgerold naar ${DOEL:-de rrsync-map van $SSH_USER}"
