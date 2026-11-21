@@ -147,9 +147,6 @@ export class Databases {
         const params = new URLSearchParams({
             per_page: String(limit),
             page: String(page),
-            ...Object.fromEntries(
-                Object.entries(equalFilters).map(([k, v]) => [k, String(v)])
-            ),
         });
         // Advanced filters: zonder backend-ondersteuning haal je alles op en
         // filtert de shim client-side. Backend wel als hij het kent.
@@ -177,6 +174,21 @@ export class Databases {
 
         let documents = (json.data || []).map(wrapDoc);
 
+        // De publieke lijst kent geen vrije filters: ?veld=waarde negeert de
+        // backend. Tot 21-11-2026 viel Query.equal daardoor stil weg, en toonde
+        // het makersformulier de speelsteden van de eerste 25 voorstellingen
+        // van de hele tabel in plaats van die van het gezelschap (audit FRM-07).
+        // Nu filtert de shim zelf, maar alleen over wat er binnenkwam: één
+        // pagina. Een filter dat ertoe doet hoort in een eigen eindpunt.
+        const velden = Object.keys(equalFilters);
+        if (velden.length) {
+            console.warn(`ctf-ui: Query.equal op ${velden.join(', ')} wordt niet door de backend gefilterd; de shim filtert alleen deze pagina (${resource}).`);
+            documents = documents.filter((d) => velden.every((k) => {
+                const waarden = Array.isArray(equalFilters[k]) ? equalFilters[k] : [equalFilters[k]];
+                return waarden.some((w) => String(d[k]) === String(w));
+            }));
+        }
+
         // Client-side filtering voor advanced filters (backend ondersteunt ze nog niet)
         advancedFilters.forEach(f => {
             if (f._q === 'greaterThan') documents = documents.filter(d => d[f.field] > f.value);
@@ -196,7 +208,7 @@ export class Databases {
 
         return {
             documents,
-            total: json.total ?? documents.length,
+            total: velden.length ? documents.length : (json.total ?? documents.length),
         };
     }
 
