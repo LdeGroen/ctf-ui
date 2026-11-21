@@ -168,6 +168,15 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$SERVER_HOSTKEY" > ~/.ssh/known_hosts_ctf
+          SSH_OPTS="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts_ctf -o GlobalKnownHostsFile=/dev/null -o BatchMode=yes"
+          if [ "$BEPERKT" = "true" ]; then
+            # Met een lege doelmap en een sleutel die tóch een shell krijgt (de
+            # oude, gedeelde) zou rsync --delete de thuismap leegmaken. Een
+            # rrsync-sleutel weigert elke andere opdracht dan rsync.
+            if ssh $SSH_OPTS "$SSH_USER@$SERVER" true 2>/dev/null; then
+              echo "::error::Deze sleutel krijgt een shell en is dus niet beperkt (rrsync ontbreekt op de server) — niets uitgerold."; exit 1
+            fi
+          fi
           rsync -az --delete \
             -e "ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts_ctf -o GlobalKnownHostsFile=/dev/null" \
             ./build/ "$SSH_USER@$SERVER:$DOEL"
