@@ -13,7 +13,11 @@
 // Backend URL kan via env: REACT_APP_API_URL of VITE_API_URL (Vite-apps).
 
 const FALLBACK_API_URL = 'https://backend.cafetheaterfestival.nl';
-const API_URL = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL || typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL || FALLBACK_API_URL;
+// Een leeg VITE_API_URL is een bewuste keuze: dan lopen de aanroepen relatief,
+// en dat heeft de dev-proxy van ctfwebapp nodig (.env.local). Alleen een
+// ontbrekende variabele valt terug op de backend.
+const VITE_URL = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_API_URL : undefined;
+const API_URL = VITE_URL !== undefined && VITE_URL !== null ? VITE_URL : typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL || FALLBACK_API_URL;
 
 // Mapping: oude Appwrite collection-ID's en namen → onze publieke resource-paden.
 const COLLECTION_TO_RESOURCE = {
@@ -64,7 +68,32 @@ function wrapDoc(doc) {
     $permissions: []
   };
 }
-async function apiFetch(path, options = {}) {
+
+// `timeoutMs` breekt een vastgelopen verzoek af; een `signal` van de aanroeper
+// (in options) blijft daarnaast werken.
+async function apiFetch(path, options = {}, timeoutMs = 0) {
+  let signal = options.signal;
+  let timer;
+  if (timeoutMs > 0) {
+    const ctrl = new AbortController();
+    timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    if (signal) {
+      if (signal.aborted) ctrl.abort();else signal.addEventListener('abort', () => ctrl.abort(), {
+        once: true
+      });
+    }
+    signal = ctrl.signal;
+  }
+  try {
+    return await apiFetchKaal(path, {
+      ...options,
+      signal
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function apiFetchKaal(path, options = {}) {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
@@ -92,9 +121,52 @@ export class Client {
     return this;
   }
 }
+
+// Op een festivaldag is het mobiele netwerk in een volle kroeg traag of even
+// weg. Met `herhaal` proberen we een mislukt verzoek nog twee keer, na een en
+// na drie seconden. Een 4xx is geen netwerkprobleem (behalve 408 en 429) en
+// herhalen heeft dan geen zin. Komt uit ctftimetable (audit PUB-13).
+const PAUZES_MS = [1000, 3000];
+async function metHerhaling(verzoek) {
+  let laatste;
+  for (let poging = 0; poging <= PAUZES_MS.length; poging++) {
+    try {
+      return await verzoek();
+    } catch (err) {
+      laatste = err;
+      const status = err && err.status;
+      if (status && status < 500 && status !== 408 && status !== 429) throw err;
+      if (poging < PAUZES_MS.length) {
+        await new Promise(klaar => setTimeout(klaar, PAUZES_MS[poging]));
+      }
+    }
+  }
+  throw laatste;
+}
 export class Databases {
-  async listDocuments(_db, collectionIdOrName, queries = []) {
+  /**
+   * opties (alle optioneel, standaard uit):
+   *   herhaal   — een lijst ophalen bij een netwerkfout of 5xx nog twee keer proberen
+   *   timeoutMs — een lijstverzoek na zoveel ms afbreken
+   */
+  constructor(_client, opties = {}) {
+    this.opties = opties || {};
+  }
+
+  // `opties.signal` gaat door naar fetch, zodat een time-out van de aanroeper
+  // het verzoek ook echt afbreekt.
+  async listDocuments(_db, collectionIdOrName, queries = [], opties = {}) {
     const resource = resolveResource(collectionIdOrName);
+    const {
+      herhaal = false,
+      timeoutMs = 0
+    } = this.opties;
+    const lijstFetch = pad => {
+      const een = () => apiFetch(pad, {
+        signal: opties && opties.signal
+      }, timeoutMs);
+      return herhaal ? metHerhaling(een) : een();
+    };
 
     // Parse Query-objecten
     let limit = 5000;
@@ -175,7 +247,7 @@ export class Databases {
         params.set('include_past', '1');
       }
     }
-    const json = await apiFetch(`/api/public/${resource}?${params.toString()}`);
+    const json = await lijstFetch(`/api/public/${resource}?${params.toString()}`);
     let documents = (json.data || []).map(wrapDoc);
 
     // De publieke lijst kent geen vrije filters: ?veld=waarde negeert de
@@ -236,6 +308,32 @@ export class Databases {
     });
     return wrapDoc(json.data || json);
   }
+}
+
+/**
+ * Alle documenten van een collectie, pagina voor pagina. Pagina's van 5000,
+ * de MAX_PER_PAGE van de backend, dus vrijwel altijd één verzoek. Stopt bij
+ * een lege pagina of als `total` bereikt is, en na twintig pagina's: anders
+ * vraagt hij eindeloos door als `total` meer belooft dan er komt. Een fout
+ * gaat door naar de aanroeper; een lege lijst bij een storing overschreef in
+ * de publiekssites de goede cache (PUB-04). Gedeeld sinds 21-11-2026 (PUB-13).
+ */
+export async function haalAlleDocumenten(databases, collectie, {
+  signal,
+  perPagina = 5000,
+  maxPaginas = 20
+} = {}) {
+  const documents = [];
+  let offset = 0;
+  for (let pagina = 0; pagina < maxPaginas; pagina++) {
+    const response = await databases.listDocuments('', collectie, [Query.limit(perPagina), Query.offset(offset)], {
+      signal
+    });
+    documents.push(...response.documents);
+    offset += perPagina;
+    if (response.documents.length === 0 || documents.length >= response.total) break;
+  }
+  return documents;
 }
 export const Query = {
   limit: n => ({

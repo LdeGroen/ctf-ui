@@ -18,7 +18,15 @@ nooit onverwacht een app breken. Nieuwe versie gebruiken = tag ophogen in de app
 - `Client`, `Databases`, `Query`, `ID` — de Appwrite-compatibele shim (voorheen
   het 6× gekopieerde `src/appwriteShim.js`). Zelfde gedrag, zelfde mapping.
 - `fetchPublic(path)` — GET naar de publieke API met 15s-timeout, geeft `json.data`.
-- `API_URL` — de backend-URL (respecteert `REACT_APP_API_URL`).
+- `API_URL` — de backend-URL (`VITE_API_URL`, of `REACT_APP_API_URL`). Een leeg
+  `VITE_API_URL` betekent relatief (dev-proxy), alleen een ontbrekende valt terug.
+- `haalAlleDocumenten(databases, collectie, { signal })` (v0.5.0) — alle pagina's,
+  met een bovengrens; een fout gaat door naar de aanroeper.
+- `new Databases(client, { herhaal, timeoutMs })` (v0.5.0) — `herhaal` probeert
+  een lijst bij een netwerkfout of 5xx nog twee keer (na 1 en 3 s), `timeoutMs`
+  breekt een vastgelopen lijstverzoek af. `listDocuments(db, coll, queries, { signal })`
+  geeft een signal door. Alles standaard uit. Webapp, timetable en archief
+  gebruiken deze shim sinds 21-11-2026 (audit PUB-13).
 
 ```js
 import { Databases, ID, fetchPublic } from 'ctf-ui/api';
