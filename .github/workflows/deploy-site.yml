@@ -19,7 +19,7 @@ name: Uitrollen naar de server (herbruikbaar)
 #         DOEL_PAD: ${{ secrets.NIEUWE_SERVER_PAD }}
 #
 # Met een eigen, beperkte sleutel per site (audit INF-01) zet je
-# `with: beperkte-sleutel: true` erbij (vanaf tag deploy-v2).
+# `with: beperkte-sleutel: true` erbij (vanaf tag deploy-v3).
 #
 # Altijd op een tag (deploy-v1) aanroepen, nooit op main: dan verandert een
 # wijziging hier niets aan een app tot die de tag ophoogt. Nieuwe versie:
