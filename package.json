@@ -1,6 +1,6 @@
 {
   "name": "ctf-ui",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Gedeelde UI-componenten en utilities voor de CTF web-apps (Café Theater Festival)",
   "main": "dist/index.js",
   "exports": {
@@ -8,6 +8,8 @@
     "./api": "./dist/api.js",
     "./i18n": "./dist/i18n.js",
     "./components": "./dist/components.js",
+    "./tekst": "./dist/tekst.mjs",
+    "./opmaak": "./dist/opmaak.js",
     "./tailwind-preset": "./tailwind-preset.js"
   },
   "files": [
@@ -15,7 +17,7 @@
     "tailwind-preset.js"
   ],
   "scripts": {
-    "build": "babel src -d dist"
+    "build": "babel src -d dist --extensions .js,.mjs --keep-file-extension"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -29,5 +31,8 @@
     "type": "git",
     "url": "git+https://github.com/LdeGroen/ctf-ui.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "dompurify": "^3.4.17"
+  }
 }

@@ -33,6 +33,15 @@ import { Databases, ID, fetchPublic } from 'ctf-ui/api';
 - Formulieren-familie: `FormField` (variant `light`/`dark`), `SubmitButton`, `useSubmitForm`
 - Kleur-constanten: `CTF_GREEN` (#20747F), `CTF_BLUE` (#78b5e3)
 
+### `ctf-ui/tekst` (v0.4.0)
+`slugify`, `escHtml`, `escAttr`, `escHtmlStreng`, `parseDateForSorting`. Zonder
+afhankelijkheden en als `.mjs`, zodat ook de prerender- en sitemapscripts (node)
+hem importeren. De slug bepaalt de URL's van webapp en archief: verander hem
+alleen met een plan voor de oude adressen.
+
+### `ctf-ui/opmaak` (v0.4.0)
+`applyFormatting`: [b]/[i]/[u] naar HTML, door DOMPurify. Alleen in de browser.
+
 ### `ctf-ui/tailwind-preset`
 ```js
 // tailwind.config.js
