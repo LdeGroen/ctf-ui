@@ -37,7 +37,7 @@ on:
       node-version:
         description: Node-versie voor de build
         type: string
-        default: '20'
+        default: '22'   # Node 20 is sinds 30-4-2026 end-of-life (audit FRM-18)
       npm-version:
         description: Vaste npm-versie (leeg = die van de runner). ctfcommi heeft 11 nodig voor zijn lockfile.
         type: string
