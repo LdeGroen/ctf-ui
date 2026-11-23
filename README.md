@@ -47,6 +47,12 @@ Voor open call, marketing en sollicitaties (audit FRM-13):
   tabblad herlaadt één keer; met `bewaard` (de app slaat tussentijds op) herlaadt
   hij bij elke fout één keer per sessie en zegt hij dat het werk bewaard is.
 
+### `ctf-ui/commi` — de kern van Commi web en mobiel (v0.8.0)
+Platte JS, geen React (audit COM-17): `maakChatApi(apiFetch, { bijlage })` met
+alle chat-eindpunten, `lokaleTijd`/`voorInvoerveld`/`vasteMomenten`/`wanneer`,
+`dagSleutel`/`dagLabel` en `EMOTICONS`/`convertEmoticons`. Mobiel geeft
+`bijlage: f => ({ uri, name, type })` mee. Tests: `npm test`.
+
 ### `ctf-ui/push` en `ctf-ui/vite` — web-push in de portalen (v0.6.0)
 `maakPush({ apiUrl, pad, kop })` geeft `pushSupported`, `getPushState`,
 `enablePush(vapidKey, lang)` en `disablePush()`; `kop` levert de inlogheader

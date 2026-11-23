@@ -1,6 +1,6 @@
 {
   "name": "ctf-ui",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Gedeelde UI-componenten en utilities voor de CTF web-apps (Café Theater Festival)",
   "main": "dist/index.js",
   "exports": {
@@ -12,6 +12,7 @@
     "./opmaak": "./dist/opmaak.js",
     "./push": "./dist/push.js",
     "./formulier": "./dist/formulier.js",
+    "./commi": "./dist/commi.js",
     "./vite": "./vite.mjs",
     "./sw.js": "./sw.js",
     "./tailwind-preset": "./tailwind-preset.js"
@@ -23,7 +24,8 @@
     "sw.js"
   ],
   "scripts": {
-    "build": "babel src -d dist --extensions .js,.mjs --keep-file-extension"
+    "build": "babel src -d dist --extensions .js,.mjs --keep-file-extension",
+    "test": "node --test"
   },
   "peerDependencies": {
     "react": ">=18"

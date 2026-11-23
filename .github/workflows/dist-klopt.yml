@@ -6,7 +6,7 @@ name: dist past bij src
 
 on:
   push:
-    paths: ['src/**', 'dist/**', 'package.json', 'package-lock.json', '.babelrc']
+    paths: ['src/**', 'test/**', 'dist/**', 'package.json', 'package-lock.json', '.babelrc']
   pull_request:
 
 jobs:
@@ -20,6 +20,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm test
       - run: npm run build
       - name: dist ongewijzigd na bouwen
         run: |
