@@ -1,6 +1,6 @@
 {
   "name": "ctf-ui",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Gedeelde UI-componenten en utilities voor de CTF web-apps (Café Theater Festival)",
   "main": "dist/index.js",
   "exports": {
@@ -11,6 +11,7 @@
     "./tekst": "./dist/tekst.mjs",
     "./opmaak": "./dist/opmaak.js",
     "./push": "./dist/push.js",
+    "./formulier": "./dist/formulier.js",
     "./vite": "./vite.mjs",
     "./sw.js": "./sw.js",
     "./tailwind-preset": "./tailwind-preset.js"

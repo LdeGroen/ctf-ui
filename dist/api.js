@@ -33,6 +33,7 @@ const COLLECTION_TO_RESOURCE = {
   '68948b97003e5aa5068c': 'sponsors',
   '6894d367002bf2645148': 'toegankelijkheid',
   '6899f3390009b108e10f': 'veiligheid',
+  // ctfveiligheid schrijft hier nog op (createDocument)
   '689ded8900383f2d618b': 'marketing',
   '68a174c900178a2511e7': 'stamgast',
   '68aa2809001c0741dd61': 'merch',
@@ -49,7 +50,6 @@ const COLLECTION_TO_RESOURCE = {
   functiehuis: 'functiehuis',
   taakbelasting: 'taakbelasting',
   taakbelastingregel: 'taakbelasting-regels',
-  app_users: 'app-users',
   waarkomenmakersterecht: 'waar-komen-makers-terecht'
 };
 function resolveResource(idOrName) {
@@ -148,6 +148,7 @@ export class Databases {
    * opties (alle optioneel, standaard uit):
    *   herhaal   — een lijst ophalen bij een netwerkfout of 5xx nog twee keer proberen
    *   timeoutMs — een lijstverzoek na zoveel ms afbreken
+   *   inclusiefVerleden — bij executions ook voorbije uitvoeringen (archief, impact)
    */
   constructor(_client, opties = {}) {
     this.opties = opties || {};
@@ -239,13 +240,12 @@ export class Databases {
       params.set('order_by', orderBy);
       params.set('order_dir', orderDir);
     }
-    // Apps die historische executions nodig hebben (archief, impact) sturen
-    // automatisch include_past=1 mee. Andere apps krijgen het future-only filter.
-    if (resource === 'executions' && typeof window !== 'undefined') {
-      const host = window.location?.hostname || '';
-      if (host.includes('archief') || host.includes('impact')) {
-        params.set('include_past', '1');
-      }
+    // Historische uitvoeringen alleen op verzoek: new Databases(client,
+    // { inclusiefVerleden: true }). Tot v0.7.0 raadde de shim dat uit de
+    // hostnaam ('archief', 'impact'), en dan kreeg een testomgeving of een
+    // nieuw domein stilletjes alleen de toekomst.
+    if (resource === 'executions' && this.opties.inclusiefVerleden) {
+      params.set('include_past', '1');
     }
     const json = await lijstFetch(`/api/public/${resource}?${params.toString()}`);
     let documents = (json.data || []).map(wrapDoc);
@@ -377,22 +377,6 @@ export const ID = {
   unique: () => null
 };
 
-// Functions/ExecutionMethod stubs — niet meer in gebruik (ctfmerch checkout
-// loopt nu via /api/public/checkout/merch). Houden we als no-op zodat oude
-// `new Functions(client)` regels niet crashen.
-export class Functions {
-  async createExecution() {
-    throw new Error('Appwrite Functions zijn vervangen door directe Laravel endpoints.');
-  }
-}
-export const ExecutionMethod = {
-  GET: 'GET',
-  POST: 'POST',
-  PUT: 'PUT',
-  PATCH: 'PATCH',
-  DELETE: 'DELETE'
-};
-
 // ---------------------------------------------------------------------------
 // Directe fetch-helper voor de display-apps (wieiswie/makers/cafes): GET naar
 // de publieke API met een 15s-timeout; geeft json.data terug.
@@ -452,7 +436,7 @@ export async function wisselInlogcodeIn(code) {
 // De meldingen die de backend (AuthController::authError) meegeeft. Alleen
 // die tonen we letterlijk: de parameter staat in de URL en is dus door
 // iedereen in te vullen.
-const BEKENDE_INLOGFOUTEN = ['Geen toegang. Jouw account staat niet in het systeem.', 'Jouw toegang is verlopen.'];
+const BEKENDE_INLOGFOUTEN = ['Geen toegang. Jouw account staat niet in het systeem.', 'Jouw toegang is verlopen.', 'Inloggen is afgebroken. Probeer het opnieuw als dat niet de bedoeling was.', 'Inloggen is verlopen of in een ander venster begonnen. Probeer het opnieuw.'];
 function inlogFoutTekst(fout) {
   return BEKENDE_INLOGFOUTEN.includes(fout) ? fout : 'Inloggen is niet gelukt.';
 }

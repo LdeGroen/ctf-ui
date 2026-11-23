@@ -6,10 +6,10 @@ Vervangt de kopieer-plak-duplicatie tussen de ~20 kleine React-apps (CRA + Tailw
 ## Installeren (in een app)
 
 ```bash
-npm install github:LdeGroen/ctf-ui#v0.1.0
+npm install github:LdeGroen/ctf-ui#v0.7.0
 ```
 
-Pin altijd op een tag (`#v0.1.0`), nooit op `main` — dan kan een wijziging hier
+Pin altijd op een tag (`#v0.7.0`), nooit op `main` — dan kan een wijziging hier
 nooit onverwacht een app breken. Nieuwe versie gebruiken = tag ophogen in de app.
 
 ## Modules
@@ -27,10 +27,25 @@ nooit onverwacht een app breken. Nieuwe versie gebruiken = tag ophogen in de app
   breekt een vastgelopen lijstverzoek af. `listDocuments(db, coll, queries, { signal })`
   geeft een signal door. Alles standaard uit. Webapp, timetable en archief
   gebruiken deze shim sinds 21-11-2026 (audit PUB-13).
+- `new Databases(client, { inclusiefVerleden: true })` (v0.7.0) — bij
+  `executions` ook de voorbije uitvoeringen (`include_past=1`). Archief en impact
+  zetten dit; tot v0.7.0 raadde de shim het uit de hostnaam.
+- Weg in v0.7.0 (audit POR-08): `Functions`/`ExecutionMethod` (Appwrite-functies
+  bestaan niet meer) en de koppeling `app_users`.
 
 ```js
 import { Databases, ID, fetchPublic } from 'ctf-ui/api';
 ```
+
+### `ctf-ui/formulier` — de formulier-apps (v0.7.0)
+Voor open call, marketing en sollicitaties (audit FRM-13):
+- `maakRequest(apiUrl, { kop })` — JSON-verzoek met nette fout (`status`, `body`);
+  `kop` geeft de inlogheader, `{ anoniem: true }` laat hem bij één verzoek weg.
+- `useAutosave(data, saveFn, delayMs)` — tussentijds opslaan; `flush()` wacht en
+  gooit bij een mislukte laatste opslag (audit FRM-09).
+- `<ErrorBoundary kleur bewaard>` — geen wit scherm bij een crash; verouderd
+  tabblad herlaadt één keer; met `bewaard` (de app slaat tussentijds op) herlaadt
+  hij bij elke fout één keer per sessie en zegt hij dat het werk bewaard is.
 
 ### `ctf-ui/push` en `ctf-ui/vite` — web-push in de portalen (v0.6.0)
 `maakPush({ apiUrl, pad, kop })` geeft `pushSupported`, `getPushState`,
@@ -82,8 +97,12 @@ géén JSX in node_modules, dus `dist/` wordt meegecommit). Release:
 ```bash
 npm run build
 git add -A && git commit -m "..."
-git tag v0.x.y && git push origin main --tags
+git tag v0.x.y && git push origin main v0.x.y   # een kale tag gaat niet mee met --follow-tags
 ```
+
+`.github/workflows/dist-klopt.yml` bouwt bij elke push opnieuw en faalt als
+`dist/` niet bij `src/` past: dan is er een bron gewijzigd zonder te bouwen, en
+krijgen de apps de oude code.
 
 ## Deploy-workflow voor de sites
 
