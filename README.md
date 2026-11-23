@@ -32,6 +32,20 @@ nooit onverwacht een app breken. Nieuwe versie gebruiken = tag ophogen in de app
 import { Databases, ID, fetchPublic } from 'ctf-ui/api';
 ```
 
+### `ctf-ui/push` en `ctf-ui/vite` — web-push in de portalen (v0.6.0)
+`maakPush({ apiUrl, pad, kop })` geeft `pushSupported`, `getPushState`,
+`enablePush(vapidKey, lang)` en `disablePush()`; `kop` levert de inlogheader
+van het portaal. De service worker (`sw.js`) zit in dit pakket; zet
+`ctfServiceWorker()` uit `ctf-ui/vite` bij de plugins in `vite.config.js` en
+haal `public/sw.js` weg. Gebruikt door ctfartiest, ctfhoreca en ctfprogrammeur
+(audit POR-07).
+
+```js
+import { maakPush } from 'ctf-ui/push';
+export const { pushSupported, getPushState, enablePush, disablePush } =
+    maakPush({ apiUrl: API_URL, pad: '/api/horeca/public', kop: authHeaders });
+```
+
 ### `ctf-ui/i18n` — meertaligheid (NL/EN)
 `LanguageProvider` (geef je eigen `translations={{nl:{...},en:{...}}}` mee),
 `useTranslation()` → `{ t, language, setLanguage }`, en `LanguageSwitcher`.
