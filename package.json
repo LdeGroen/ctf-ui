@@ -41,6 +41,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "dompurify": "^3.4.17"
+    "dompurify": "^3.5.0"
   }
 }
